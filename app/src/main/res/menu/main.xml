@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+      xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_sort_name"
+        android:orderInCategory="100"
+        android:title="@string/action_sort_name"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_sort_style"
+        android:orderInCategory="100"
+        android:title="@string/action_sort_style"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_sort_abv"
+        android:orderInCategory="100"
+        android:title="@string/action_sort_abv"
+        app:showAsAction="never"/>
+    <item
+        android:id="@+id/menu_search"
+
+        android:icon="@android:drawable/ic_menu_search"
+        app:showAsAction="ifRoom"
+        android:title="FindNow"  /> <!-- android:actionViewClass="android.widget.SearchView" -->
+
+</menu>
