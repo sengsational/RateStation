@@ -42,19 +42,12 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     private static final int EMAIL_COMPLETE = 1959;
     private static final int VALIDATE_CARD = 1957;
 
-    public static final String PREF_SHAKER_TUTORIAL = "prefShakerTutorial";
-    public static final String PREF_ON_QUE_TUTORIAL = "prefOnQueTutorial";
-
-    //private static QueryPkg queryPackage;
-    //private static boolean refreshRequired;
     private static int listPosition = -1;
     //private AppCompatDelegate mAppCompatDelegate;
     public static final int DETAIL_REQUEST = 0;
     private ResourceCursorAdapter mResourceCursorAdapter;
-    private int[] lastSort = {-1,-1}; //for instance {QueryPkg.NAME, QueryPkg.ASC}
 
     public MybCursorRecyclerViewAdapter beerRecyclerViewAdapter;
-
 
     // new stuff
     public RatstatDatabaseAdapter repository;
@@ -67,12 +60,10 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     private MenuItem searchMenu = null;
     private String mQueryTextContent = "";
     private String mQueryButtonText;
-    private boolean mIsTapQuery;
-    private boolean mIsFlaggedBeerQuery;
-    private boolean mIsLoggedIn;
     private static Random mRandom =  new Random();
     private String mLastSortFieldName;
     private String mLastSortAscendingDescending;
+    private boolean mSingleItemFired = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,6 +71,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         //mAppCompatDelegate.installViewFactory();
         //mAppCompatDelegate.onCreate(savedInstanceState);
         super.onCreate(savedInstanceState);
+        Log.v(TAG, "RecyclerSqlbListActivity.onCreate() running.");
         setContentView(R.layout.activity_recycler_list);
 
         recyclerView = (RecyclerView) findViewById(R.id.recyclerView1);
@@ -89,7 +81,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
             repository = new RatstatDatabaseAdapter();
             repository.open(this);
 
-            Log.v(TAG, "onCreate() is pulling records from the database.");
+            Log.v(TAG, "RecyclerSqlbListActivity.onCreate() is pulling records from the database.");
 
             // This intent carries with it the details of how to query
             Intent intent = getIntent();
@@ -100,8 +92,8 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
                 Log.v("sengsational", "THIS NEVER RUNS - onCreate() ACTION_SEARCH!!! " + query);
             } else {
                 String selectionFields = intent.getStringExtra("selectionFields");
-                String selectionArgs[] = intent.getStringArrayExtra("selectionArgs");
-                final String pullFields[] = intent.getStringArrayExtra("pullFields");
+                String[] selectionArgs = intent.getStringArrayExtra("selectionArgs");
+                final String[] pullFields = intent.getStringArrayExtra("pullFields");
                 //Log.v(TAG, "pullFields in RecyclerSqlbListActivity " + pullFields);
                 final String orderBy = intent.getStringExtra("orderBy");
                 boolean showDateInList = intent.getBooleanExtra("showDateInList", false);
@@ -109,32 +101,24 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
                 mQueryButtonText = intent.getStringExtra("queryButtonText");
                 mQueryTextContent = intent.getStringExtra("queryTextContent"); // DRS 20171021 - Will be null the first time, but on screen reorientation will have previous query
                 if (mQueryTextContent == null) mQueryTextContent = "";
-                //refreshRequired = intent.getBooleanExtra("refreshRequired",false);
-
-                mIsTapQuery = selectionFields.contains("CONTAINER=?"); // sorry for the hack, but this is always matched with "draught"
-                mIsFlaggedBeerQuery = selectionFields.contains("HIGHLIGHTED");
-                mIsLoggedIn = intent.getBooleanExtra("isLoggedIn", false);
-                Log.v(TAG, "hightlighted found " + mIsFlaggedBeerQuery + " isLoggedIn: " + mIsLoggedIn);
-
-                //Log.v(TAG, ">>>>>> Selection Fields " + selectionFields);
                 for (int i = 0 ; i < selectionArgs.length; i++){
-                    //Log.v(TAG, ">>>>>> Selection Args " + selectionArgs[i]);
+                    Log.v(TAG, ">>>>>> Selection Args " + selectionArgs[i]);
                 }
-                QueryPkg qp = new QueryPkg("UFO", pullFields, selectionFields, selectionArgs, null, null, orderBy, hideMixesAndFlights, mQueryTextContent, getApplicationContext());
 
+                QueryPkg usedInFetch = new QueryPkg(RatstatDatabaseAdapter.MAIN_TABLE, pullFields, selectionFields, selectionArgs, null, "T", null, false, null, this);
                 if (pullFields != null) {
-                    Log.v(TAG, "Creating a cursor with 'fetch'");
+                    Log.v(TAG, "RecyclerSqlbListActivity.Creating a cursor with 'fetch'");
                     Cursor aCursor = RatstatDatabaseAdapter.fetch(this);
                     RatstatApplication.setCursor(aCursor); // DRS 20161201 - Added 1 - Cursors only in application class, save query package for reQuery
                     boolean hasRecords = aCursor.moveToFirst();
                     if (aCursor.getCount() != 0) {
-                        Log.v(TAG, "onCreate() running.  Cursor " + (hasRecords?"has records":"has NO RECORDS"));
-                        //Log.v(TAG, "isFlaggedOnly() " + QueryPkg.includesSelection("HIGHLIGHTED", this));
+                        Log.v(TAG, "RecyclerSqlbListActivity.onCreate() running.  Cursor " + (hasRecords?"has records":"has NO RECORDS"));
                         cursorRecyclerViewAdapter = new MybCursorRecyclerViewAdapter(this, aCursor, showDateInList, QueryPkg.includesSelection("HIGHLIGHTED", this));
                         cursorRecyclerViewAdapter.hasStableIds();
                         recyclerView.setAdapter(cursorRecyclerViewAdapter);
                         recyclerView.hasFixedSize();
                     } else {
+                        Log.v(TAG, "RecyclerSqlbListActivity.onCreate() running.  Cursor " + aCursor.getCount() + " records.");
                         manageToasts();
                     }
                 } else {
@@ -142,8 +126,6 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
                     toast.show();
                 }
             }
-
-
         } catch (Exception e) {
             Log.v(TAG, "Exception in onCreate " + e.getMessage());
         }
@@ -281,6 +263,14 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Log.v("sengsational", "onResume() running  <<<<<<<<<<<<<<<<<<<<<< LIST DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        // If there is a single item, open it, but only the first time
+        if (this.cursorRecyclerViewAdapter.getCursor().getCount() == 1 && !mSingleItemFired) {
+            Log.v(TAG, "Automatically 'clicking' the only item in the list.");
+            mSingleItemFired = true;
+            Intent intent = new Intent(RecyclerSqlbListActivity.this, BeerSlideActivity.class);
+            intent.putExtra(BeerSlideActivity.EXTRA_POSITION, 1);
+            startActivity(intent);
+        }
     }
 
     @Override
@@ -365,7 +355,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         // Assumes current activity is the searchable activity
         //searchView.setSearchableInfo(searchManager.getSearchableInfo(getComponentName()));
         //searchView.setIconifiedByDefault(false); // Do not iconify the widget; expand it by default
-        Log.v("sengsational", "searchView isIconified" + searchView.isIconified());
+        Log.v("sengsational", "searchView isIconified " + searchView.isIconified());
 
         return true;
     }
@@ -394,19 +384,19 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     }
 
     private void manageSort(String fieldName, boolean castInteger) {
-
-        String ascendingDescending = "";
+        Log.v(TAG, "manageSort() with " + fieldName);
+        String ascendingDescending = "ASC";
         // override the ascending descending passed in if
         // two sorts of the same thing result in swapping asc to desc or vica versa
         // if the same sort field comes through as last time...
-        if (mLastSortFieldName.equals(fieldName)){
+        Log.v(TAG, "The field being sorted..." + mLastSortFieldName + " " + fieldName);
+        if (fieldName.equals(mLastSortFieldName)){
             // make the sort opposite of last time
             if (mLastSortAscendingDescending.equals("ASC")) {
                 ascendingDescending = "DESC";
             } else {
                 ascendingDescending = "ASC";
             }
-
         }
 
         // set up the SQL, honoring the the castInteger
@@ -414,6 +404,8 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         if (castInteger) {
             sortParameter = "CAST (" +  fieldName + " AS FLOAT) " + ascendingDescending;
         }
+
+        QueryPkg.setOrderBy(sortParameter, this);
 
         if (!"".equals(mQueryTextContent)) QueryPkg.setFullTextSearch(mQueryTextContent, this);
         Cursor aCursor = RatstatDatabaseAdapter.fetch(this);
@@ -423,39 +415,6 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         mLastSortFieldName = fieldName;
         mLastSortAscendingDescending = ascendingDescending;
     }
-
-    /*
-    private void manageSortNOTUSED(int fieldNumber, boolean castInteger, int secondFieldNumber) {
-        // two sorts of the same thing result in swapping asc to desc or vica verca
-        int ascDesc = QueryPkg.ASC;
-        if(lastSort[0] == fieldNumber && lastSort[1] == QueryPkg.ASC) { ascDesc = QueryPkg.DESC; }
-
-
-        String sortParameter = QueryPkg.fields[fieldNumber] + " " + QueryPkg.fields[ascDesc];
-        if (castInteger) {
-            sortParameter = "CAST (" +  QueryPkg.fields[fieldNumber] + " AS FLOAT) " + QueryPkg.fields[ascDesc];
-        }
-
-        QueryPkg.setOrderBy(sortParameter, getApplicationContext());
-        if (secondFieldNumber >= 0) {
-            QueryPkg.setSecondSortBy("," + QueryPkg.fields[secondFieldNumber] + " " + QueryPkg.fields[ascDesc], this);
-        }
-
-        if (!"".equals(mQueryTextContent)) QueryPkg.setFullTextSearch(mQueryTextContent, this);  //DRS 20171019 - For requery
-        Cursor aCursor = RatstatDatabaseAdapter.fetch(this);
-        RatstatApplication.setCursor(aCursor); // DRS 20161201 - Added 1 - Cursors only in application class, save query package for reQuery
-        if (cursorRecyclerViewAdapter != null) cursorRecyclerViewAdapter.changeCursor(aCursor);
-
-
-        //Cursor cursor = repository.query("UFO", queryPackage.pullFields, queryPackage.selectionFields, queryPackage.selectionArgs, null, null, sortParameter);
-        //mResourceCursorAdapter.swapCursor(cursor);
-
-        // update last sort
-        lastSort[0] = fieldNumber;
-        lastSort[1] = ascDesc;
-    }
-
-     */
 
     private String getBrewIdsListFromCursor() {
         StringBuilder builder = new StringBuilder();

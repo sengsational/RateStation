@@ -1,5 +1,6 @@
 package com.sengsational.ratestation;
 
+import static android.app.Activity.RESULT_OK;
 import static androidx.fragment.app.FragmentManager.TAG;
 
 import android.content.Intent;
@@ -12,10 +13,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.google.zxing.integration.android.IntentIntegrator;
 import com.sengsational.ratestation.databinding.FragmentMainBinding;
 
 import java.util.ArrayList;
@@ -69,7 +73,11 @@ public class MainFragment extends Fragment {
         binding.buttonScan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                NavHostFragment.findNavController(MainFragment.this).navigate(R.id.action_FirstFragment_to_SecondFragment);
+                IntentIntegrator integrator = new IntentIntegrator(MainFragment.this.getActivity());
+                integrator.setPrompt("Scan the beer's QR code");
+                integrator.setTimeout(8000);
+                integrator.setOrientationLocked(true);
+                integrator.initiateScan();
             }
         });
         binding.buttonRatings.setOnClickListener(new View.OnClickListener() {

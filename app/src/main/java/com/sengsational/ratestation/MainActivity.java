@@ -8,23 +8,32 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.os.Bundle;
 
 import com.google.android.material.snackbar.Snackbar;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 import com.sengsational.ratestation.databinding.ActivityMainBinding;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -34,7 +43,7 @@ public class MainActivity extends AppCompatActivity implements DataView {
     private ActivityMainBinding binding;
     private StoreListPresenter storeListPresenter;
     private FestivalEvent mFestivalEvent;
-
+    private ActivityResultLauncher<Intent> scanQrResultLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +53,18 @@ public class MainActivity extends AppCompatActivity implements DataView {
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
         dumpPrefs(prefs);
+
+        // Get the intent that started this activity
+        Intent intent = getIntent();
+        // Get the URI from the intent
+        Uri uri= intent.getData();
+        // Get the original QR code data
+        if (uri != null) {
+            String data = uri.toString();
+            // Extract the exercise id and use it
+            String dataArgs = data.replace("ratstat://", "");
+            Log.v(TAG, "dataArgs [" + dataArgs + "]");
+        }
 
         // FIRST RUN, EVENT HASH WILL BE EMPTY --> GO OUT AND GET THE EVENT DATA FROM THE WEB
         String eventHash = prefs.getString(EVENT_HASH_PREF, "");
@@ -91,6 +112,7 @@ public class MainActivity extends AppCompatActivity implements DataView {
                         .setAction("Action", null).show();
             }
         });
+
     }
 
     @Override
@@ -98,6 +120,66 @@ public class MainActivity extends AppCompatActivity implements DataView {
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
         return NavigationUI.navigateUp(navController, appBarConfiguration) || super.onSupportNavigateUp();
     }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
+
+        if (requestCode == IntentIntegrator.REQUEST_CODE)  {
+            // This is after the user scanned the Touchless menu and we now need to USE the URL that was scanned
+            IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
+            if(result != null) {
+                if(result.getContents() == null) {
+                    Toast.makeText(this, "Took a while, so we gave up", Toast.LENGTH_LONG).show();
+                } else {
+                    String barcodeContents = result.getContents();
+                    String eventHash = mFestivalEvent.getEventHash() + "-";
+                    if (barcodeContents.contains(eventHash)) {
+                        String beerCode =  barcodeContents.split("-")[1];
+                        try {
+                            int beerNumber = Integer.parseInt(beerCode);
+                            Log.v(TAG, "Got a parsable beer number: " + beerNumber);
+                            // We now need to run "FIND" with search text of the beerNumber
+
+                            String[] pullFields = StationItem.FIELDS_ALL;
+                            String selectionFields = null;
+                            String selectionArgs[] = null;
+                            String orderBy = null;
+
+                            StringBuilder selectionFieldsBuilder = new StringBuilder();
+                            ArrayList<String> selectionArgsArray = new ArrayList<>();
+                            // HERE IS WHERE WE COULD SET SELECTION CRITERIA, IF NEEDED
+
+                            selectionFieldsBuilder.append(StationDbItem.BEER_CODE + " = ? ");
+                            selectionArgsArray.add("" + beerNumber);
+
+                            selectionFields = selectionFieldsBuilder.toString();
+                            selectionArgs =  selectionArgsArray.toArray(new String[0]);
+
+                            Intent beerList = null;
+                            beerList = new Intent(this, RecyclerSqlbListActivity.class);
+                            beerList.putExtra("pullFields", pullFields);
+                            beerList.putExtra("selectionFields", selectionFields);
+                            beerList.putExtra("selectionArgs", selectionArgs);
+                            Log.v(TAG, "Going from MainActivity.onActivityResult() to RecyclerSqlbListActivity");
+                            startActivity(beerList);
+
+                        } catch (Throwable t){
+                            Toast.makeText(this, "QR code doesn't appear to have a beer number: " + result.getContents(), Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        Toast.makeText(this, "QR code doesn't appear to be for a beer: " + result.getContents(), Toast.LENGTH_LONG).show();
+                    }
+                }
+            } else {
+                super.onActivityResult(requestCode, resultCode, intent);
+            }
+        } else {
+            Log.v(TAG, "Activity Result code " + resultCode + " not handled.");
+        }
+    }
+
+
     public void saveValidEvent(FestivalEvent discoveredFestivalEvent) {
         mFestivalEvent = discoveredFestivalEvent;
         mFestivalEvent.saveObjectToPreferences(this);
@@ -117,7 +199,7 @@ public class MainActivity extends AppCompatActivity implements DataView {
         Map<String,?> keys = prefs.getAll();
 
         for(Map.Entry<String,?> entry : keys.entrySet()){
-            Log.d("map values", entry.getKey() + ": " + entry.getValue());
+            Log.d(TAG, entry.getKey() + ": " + entry.getValue());
         }
     } // Private Helper Method
 

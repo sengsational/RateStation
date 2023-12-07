@@ -189,10 +189,10 @@ public class RatstatDatabaseAdapter {
 
         //QueryPkg.selectionArgs = selectionArgsArray.toArray(new String[0]);
         String[] localSelectionArgs = selectionArgsArray.toArray(new String[0]);
-        //Log.v("sengsational", "selectionArgs: " + Arrays.toString(localSelectionArgs));
-        //Log.v("sengsational", "selectionFields: " + localSelectionFields);
-        //Log.v("sengsational", "pullFields: " + Arrays.toString(QueryPkg.getPullFields(context)));
-        //Log.v("sengsational", "orderBy: " + QueryPkg.getOrderBy(context));
+        Log.v("sengsational", "selectionArgs: " + Arrays.toString(localSelectionArgs));
+        Log.v("sengsational", "selectionFields: " + localSelectionFields);
+        Log.v("sengsational", "pullFields: " + Arrays.toString(QueryPkg.getPullFields(context)));
+        Log.v("sengsational", "orderBy: " + QueryPkg.getOrderBy(context));
 
         String orderByDirective = QueryPkg.getOrderBy(context);
         //Log.v(TAG, "Second order by is not being used.");
