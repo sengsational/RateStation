@@ -74,7 +74,7 @@ public class ItemListInteractor extends AsyncTask<Void, Void, Boolean>  {
 
         if (success) {
             Log.v("sengsational", "onPostExecute success: " + success);
-            nListener.onFinished();
+            nListener.onFinished("ItemListInteractor success");
         } else {
             Log.v("sengsational", "onPostExecute fail");
             nListener.onError(nErrorMessage);

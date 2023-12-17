@@ -51,7 +51,7 @@ public class QueryPkg implements Serializable {
         editor.apply();
     }
 
-    public static String getOrderBy(Context context) {
+    public static String getOrderByFieldName(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context).getString(ORDER_BY, StationDbItem.ID);
     }
 
@@ -138,6 +138,7 @@ public class QueryPkg implements Serializable {
     }
 
     private static String[] makeArray(String delimitedString) {
+        if (delimitedString == null || delimitedString.length() == 0) return new String[0];
         return delimitedString.split(delimiter);
     }
 

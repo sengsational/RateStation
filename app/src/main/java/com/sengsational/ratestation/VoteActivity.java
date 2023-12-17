@@ -4,11 +4,16 @@ import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
 import static android.app.PendingIntent.getActivity;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
+import static com.sengsational.ratestation.PopTutorial.EXTRA_TEXT_RESOURCE;
+import static com.sengsational.ratestation.PopTutorial.EXTRA_TITLE_RESOURCE;
+
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -19,11 +24,17 @@ import android.widget.Toast;
 
 import com.sengsational.ratestation.databinding.ActivityVoteBinding;
 
-public class VoteActivity extends AppCompatActivity {
+public class VoteActivity extends AppCompatActivity implements DataView {
     private static final String TAG = VoteActivity.class.getSimpleName();
     private static final int PERMISSION_REQUEST_CODE = 1959;
+    private static final int CALLBACK = 42;
     private ActivityVoteBinding binding;
     FestivalEvent mFestivalEvent = new FestivalEvent(); // Populated in onCreate(), used in determining valid voting location.
+    private View mProgressView;
+    private String mError;
+    private String mMessage;
+    private AlertDialog mEndDialog;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,36 +51,31 @@ public class VoteActivity extends AppCompatActivity {
             mFestivalEvent = (FestivalEvent) objReceived;
         }
 
-        final Button voteButton = binding.buttonVote;
-        voteButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                boolean alreadyGranted = ContextCompat.checkSelfPermission(VoteActivity.this, ACCESS_COARSE_LOCATION)==PERMISSION_GRANTED?true:false;
-                Toast.makeText(VoteActivity.this, "Button clicked. alreadyGranted " + alreadyGranted, Toast.LENGTH_SHORT).show();
-                if (!alreadyGranted) {
-                    presentAlert(getString(R.string.location_permission_education), getString(R.string.location_permission_title), VoteActivity.this);
-                } else {
-                    checkLocation(true);
-                }
-            }
+        boolean alreadyGranted = ContextCompat.checkSelfPermission(VoteActivity.this, ACCESS_COARSE_LOCATION)==PERMISSION_GRANTED?true:false;
+        Toast.makeText(VoteActivity.this, "Button clicked. alreadyGranted " + alreadyGranted, Toast.LENGTH_SHORT).show();
+        if (!alreadyGranted) {
+            presentAlert(getString(R.string.location_permission_education), getString(R.string.location_permission_title), VoteActivity.this);
+        } else {
+            checkLocation(true);
+        }
 
-            private void presentAlert(String dialogMessage, String dialogTitle, VoteActivity activity) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        mProgressView = findViewById(R.id.top_progress);
+    }
+    private void presentAlert(String dialogMessage, String dialogTitle, VoteActivity activity) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
 
-                builder.setPositiveButton(R.string.allow, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        activity.checkLocation(true);
-                    }
-                });
-                builder.setNegativeButton(R.string.deny, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        activity.checkLocation(false);
-                    }
-                });
-
-                builder.setMessage(dialogMessage).setTitle(dialogTitle).create().show();
+        builder.setPositiveButton(R.string.allow, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                activity.checkLocation(true);
             }
         });
+        builder.setNegativeButton(R.string.deny, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                activity.checkLocation(false);
+            }
+        });
+
+        builder.setMessage(dialogMessage).setTitle(dialogTitle).create().show();
     }
 
     private void checkLocation(boolean allow) {
@@ -92,15 +98,12 @@ public class VoteActivity extends AppCompatActivity {
                         @Override public void onNewLocationAvailable(SingleShotLocationProvider.GPSCoordinates location) {
                             Log.d(TAG, "device location is " + location.longitude + ", " + location.latitude);
                             if (mFestivalEvent.isWithinRadius(location.latitude, location.longitude)) {
-                                Toast.makeText(VoteActivity.this, "Votes will be counted!!", Toast.LENGTH_SHORT).show();
 
-                                // Need to start a listener
+                                Toast.makeText(VoteActivity.this, mFestivalEvent.getVoteRadiusMessage(location.latitude, location.longitude), Toast.LENGTH_LONG).show();
 
-                                // Need to start a background process here to submit the votes to the server.
-
-                                // Need to present a spinner
-
-                                // Listener needs to wait for success or timeout and present results to the user.
+                                showProgress(true);
+                                VoteSubmitInteractor voteSubmitInteractor = new VoteSubmitInteractor();
+                                voteSubmitInteractor.pushDataToWeb(VoteActivity.this, new WebResultListener(VoteActivity.this), VoteActivity.this);
 
                             } else {
                                 AlertDialog.Builder builder = new AlertDialog.Builder(VoteActivity.this);
@@ -108,7 +111,7 @@ public class VoteActivity extends AppCompatActivity {
                                     public void onClick(DialogInterface dialog, int id) {
                                     }
                                 });
-                                builder.setMessage("It looks like you're not at the venue right now (" + String.format("%d",(long)mFestivalEvent.getMilesFromCenter(location.latitude, location.longitude)) +" miles away).  Voting is for people that are on-site.").setTitle("So Far Away").create().show();
+                                builder.setMessage(mFestivalEvent.getVoteRadiusMessage(location.latitude, location.longitude)).setTitle("So Far Away").create().show();
                             }
                         }
                     });
@@ -118,5 +121,81 @@ public class VoteActivity extends AppCompatActivity {
                 return;
         }
     }
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
+        Log.v("sengsational", "VoteActivity.onActivityResult running with requestCode " + requestCode + ", resultCode " + resultCode);
+        if (requestCode == VoteActivity.CALLBACK) {
+            Log.v(TAG, "onActivityResult fired <<<<<<<<<< resultCode:" + resultCode);
+        } else {
+            String intentName = "not available";
+            if (intent != null) {
+                intentName = intent.getClass().getName();
+            }
+            Log.v(TAG, "onActivityresult with " + requestCode + ", " + resultCode + ", " + intentName);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mEndDialog != null) {
+            mEndDialog.dismiss();
+            mEndDialog = null;
+        }
+    }
+
+    /// BELOW: IMPLEMENTS DATA VIEW
+    @Override
+    public void getStoreList() {}
+    @Override
+    public Context getContext() {return this;}
+    @Override
+    public void showProgress(boolean show) {
+        if (show) {
+            mProgressView.setVisibility(View.VISIBLE);
+        } else {
+            mProgressView.setVisibility(View.GONE);
+        }
+    }
+    @Override
+    public void onDestroy() {super.onDestroy();}
+    @Override
+    public void showMessage(String message) {
+        mMessage = message;
+    }
+    @Override
+    public void showMessage(String message, int toastLength) {}
+    @Override
+    public void setUsernameError(String message) {
+        mError = message;
+    }
+    @Override
+    public void setPasswordError(String message) {}
+    @Override
+    public void saveValidCredentials(String authenticationName, String password, String savePassword, String mou, String storeNumber, String userName, String tastedCount) {}
+    @Override
+    public void saveValidStore(String storeNumber) {}
+    @Override
+    public void navigateToHome() {
+        AlertDialog.Builder endDialog = new AlertDialog.Builder(this);
+        String dialogTitle = (mError != null)?"Problem Saving":"Input Saved";
+
+        endDialog.setPositiveButton("Got it", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                mEndDialog.dismiss();
+                Intent beginAgain = new Intent(VoteActivity.this, MainActivity.class);
+                startActivity(beginAgain);
+            }
+        });
+        mEndDialog = endDialog.setMessage(mMessage).setTitle(dialogTitle).create();
+        mEndDialog.show();
+    }
+    @Override
+    public void setStoreView(boolean resetPresentation) {}
+    @Override
+    public void setUserView() {}
+    @Override
+    public void showDialog(String message, long daysSinceQuiz) {}
 }
 

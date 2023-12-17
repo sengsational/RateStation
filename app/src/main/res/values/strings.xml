@@ -2,7 +2,7 @@
     <string name="app_name">RateStation</string>
     <string name="title_activity_main">MainActivity</string>
     <!-- Strings used for fragments for navigation -->
-    <string name="ratstat_label">BeerRater</string>
+    <string name="ratstat_label">Rate Station</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
@@ -94,6 +94,7 @@
     <string name="action_search_name">Search Name</string>
     <string name="action_sort_style">Sort by Style</string>
     <string name="action_sort_abv">Sort by ABV</string>
+    <string name="action_submit_votes">Submit Votes</string>
     <string name="rate_beer_title">
         "Saving Your Ratings"
     </string>
@@ -104,6 +105,7 @@
         <p>I just wanted to be sure you knew the deal.</p>]]>
     </string>
     <string name="title_activity_beer_list">RateStation List</string>
+    <string name="title_activity_ratings_list">RateStation</string>
     <string name="title_activity_beer">RateStation Details</string>
 
 

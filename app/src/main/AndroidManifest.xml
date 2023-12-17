@@ -49,6 +49,13 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".RecyclerSqlcListActivity"
+            android:label="@string/title_activity_ratings_list"
+            android:launchMode="singleTop"
+            android:exported="true"
+            android:theme="@style/Theme.RateStation.YesActionBar">
+        </activity>
+        <activity
             android:name=".BeerSlideActivity"
             android:label="@string/title_activity_beer"
             android:exported="true">

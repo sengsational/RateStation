@@ -50,6 +50,10 @@ public class RatstatApplication extends Application {
         return "https://" + getDestinationWebDomain() + "/event/server/Event.php?active=Y";
     }
 
+    public static String getVoteSubmitUrlString() {
+        return "https://" + getDestinationWebDomain() + "/event/server/PostData.php";
+    }
+
     public static void setContext(Context context) {
         mContext = context;
     }
@@ -143,14 +147,14 @@ public class RatstatApplication extends Application {
         //if (queryPkg != null) QueryPkg = queryPkg;
     }
 
-    public static Cursor getCursor(Context context) {
+    public static Cursor getCursor(String queryType, Context context) {
 
         if (mCursor != null && !mCursor.isClosed()) {
             return mCursor;
         } else {
             Log.v(TAG, "ERROR: The cursor was null!!!");
-            if (mContext != null) mCursor = reQuery(mContext);
-            else if (context != null) mCursor = reQuery(context);
+            if (mContext != null) mCursor = reQuery(queryType, mContext);
+            else if (context != null) mCursor = reQuery(queryType, context);
         }
         if (mCursor == null) {
             Log.e(TAG, "ERROR: mCursor was null, despite all efforts to get a good one. Using a generic one.");
@@ -170,8 +174,9 @@ public class RatstatApplication extends Application {
         QueryPkg.setFullTextSearch(searchText, context);
     }
 
-    public static Cursor reQuery(Context context) {
-        Cursor aCursor = RatstatDatabaseAdapter.fetch(context);
+    public static Cursor reQuery(String queryType, Context context) {
+        Log.v(TAG, "RatstatApplication.requery()");
+        Cursor aCursor = RatstatDatabaseAdapter.fetch(queryType, context);
         setCursor(aCursor);
         return aCursor;
     }

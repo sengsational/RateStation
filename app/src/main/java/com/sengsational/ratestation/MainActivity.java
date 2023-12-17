@@ -48,9 +48,6 @@ public class MainActivity extends AppCompatActivity implements DataView {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // We can use this any time
-        Log.v(TAG, "We can get ANDROID_ID when needed: " +  android.provider.Settings.Secure.getString(this.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID));
-
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
         dumpPrefs(prefs);
 
@@ -184,6 +181,7 @@ public class MainActivity extends AppCompatActivity implements DataView {
         mFestivalEvent = discoveredFestivalEvent;
         mFestivalEvent.saveObjectToPreferences(this);
         Log.v(TAG, "FestivalEvent has hash " + mFestivalEvent.getEventHash());
+
         // Because we just got an event from the web, we need to refresh the data
         RatstatDatabaseAdapter databaseAdapter = new RatstatDatabaseAdapter() ;
         SQLiteDatabase db = databaseAdapter.openDb(this);                                     //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<OPENING DATABASE

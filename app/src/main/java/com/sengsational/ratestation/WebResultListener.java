@@ -108,7 +108,7 @@ public class WebResultListener implements LoaderManager.LoaderCallbacks<Cursor> 
         }
     }
 
-    public void onFinished() {
+    public void onFinished(String message) {
         if (aActivity == null || mDataView == null) {
             Log.v(TAG, "WebResultListener.onFinished with activity " + aActivity +  " and view " + mDataView + " not doing anything.");
             return;
@@ -117,6 +117,8 @@ public class WebResultListener implements LoaderManager.LoaderCallbacks<Cursor> 
             public void run() {
                 Log.v("sengsational", "WebResultListener.onFinished.");
                 mDataView.showProgress(false);
+                mDataView.showMessage(message);
+                Log.v(TAG, "data view : " + mDataView.getClass().getSimpleName());
                 mDataView.navigateToHome();
             }
         });
@@ -124,12 +126,18 @@ public class WebResultListener implements LoaderManager.LoaderCallbacks<Cursor> 
 
     // All errors now just go through this one method.  These call methods in the main activity and manage details with the UI elements
     private void handleError(final String errorMessage) {
-        if (aActivity == null || mDataView == null) return;
+        if (aActivity == null || mDataView == null) {
+            Log.e(TAG, "One or both are null - aActivity: " + aActivity + " mDataView: " + mDataView);
+            return;
+        }
         aActivity.runOnUiThread(new Runnable() {
             public void run() {
+                Log.v(TAG, "handleError running " + mDataView.getClass().getSimpleName() +".showMessage(" + errorMessage + ")");
                 mDataView.showProgress(false);
                 mDataView.showMessage(errorMessage);
                 mDataView.setPasswordError(errorMessage);
+                mDataView.setUsernameError(errorMessage);
+                mDataView.navigateToHome();
             }
         });
     }

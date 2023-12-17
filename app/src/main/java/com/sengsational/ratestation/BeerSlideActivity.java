@@ -85,8 +85,8 @@ public class BeerSlideActivity extends AppCompatActivity {
         // DRS 20161130 - Added 3
         try { mPosition = (Integer) getIntent().getExtras().get(EXTRA_POSITION); } catch (Throwable t) {Log.e(TAG, "unable to get " + EXTRA_POSITION);}
         //mCursor = UfoDatabaseAdapter.getCursor();
-        if (RatstatApplication.getCursor(getApplicationContext()) != null) {
-            Cursor cursor = RatstatApplication.getCursor(getApplicationContext());
+        if (RatstatApplication.getCursor("queryPackage", getApplicationContext()) != null) {
+            Cursor cursor = RatstatApplication.getCursor("queryPackage", getApplicationContext());
             cursor.moveToPosition(mPosition);
         }
 
@@ -169,7 +169,7 @@ public class BeerSlideActivity extends AppCompatActivity {
         public BeerSlidePageAdapter(FragmentManager fm, Context applicationContext){
             super(fm);
             // DRS 20161130 - Commented 1, Added 1
-            if (RatstatApplication.getCursor(applicationContext) != null) this.count = RatstatApplication.getCursor(applicationContext).getCount();
+            if (RatstatApplication.getCursor("queryPackage", applicationContext) != null) this.count = RatstatApplication.getCursor("queryPackage", applicationContext).getCount();
             else Log.v(TAG, "Cursor was null in BeerSlidePageAdapter.");
         }
 

@@ -2,14 +2,12 @@ package com.sengsational.ratestation;
 
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteStatement;
-import android.preference.PreferenceManager;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -23,7 +21,7 @@ public class RatstatDatabaseAdapter {
     private static final String TAG = RatstatDatabaseAdapter.class.getSimpleName();
     public static final String DB_NAME = "RS_DB_A";
     public static final String MAIN_TABLE = "RS_ITEMS";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3;
     private static DatabaseHelper DB_HELPER;
     private static SQLiteDatabase SQL_DB;
     private static Cursor SQL_CURSOR;
@@ -48,7 +46,7 @@ public class RatstatDatabaseAdapter {
         return SQL_DB;
     }
 
-    public void close() {
+    public static void close() {
         Log.v(TAG, "close() being called.  Closing DB_HELPER.");
         /*
         StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
@@ -81,17 +79,17 @@ public class RatstatDatabaseAdapter {
 
 
     public static void update(StationItem model, int position, Context context) {
-        Log.v(TAG, "update(model, position) is adding to the POSITION_SET.");
+        Log.v(TAG, "update(model, position) is adding " + position + " to the POSITION_SET.");
         POSITION_SET.add(position);
         update(model, context);
     }
 
-    static void update(StationItem model, Context context) {
+    public static void update(StationItem model, Context context) {
         ContentValues values = model.fillModelValues(model);
         Log.v(TAG, "Working on model that looks like this: " + model);
         Log.v(TAG, "Updating record " + StationDbItem.ID + "=" + model.getId() + " in the database.");
         if (!SQL_DB.isOpen()) openDatabase(context);
-        SQL_DB.update(MAIN_TABLE, values, StationDbItem.ID + "=?", new String[] {"" + model.getId()});
+        int ok = SQL_DB.update(MAIN_TABLE, values, StationDbItem.ID + "=?", new String[] {"" + model.getId()});
         StationItem resultInDb = getById("" + model.getId());
         Log.v(TAG, "after update, resultInDb: " + resultInDb);
     }
@@ -170,33 +168,61 @@ public class RatstatDatabaseAdapter {
         }
     }
 
-    public static Cursor fetch(Context context) {
+    public static Cursor fetch(String queryType, Context context) {
+        Log.v(TAG, "fetch with queryType "  + queryType);
+        String[] pullFields =  QueryPkg.getPullFields(context);
 
         ArrayList<String> selectionArgsArray = new ArrayList<String>();
-        selectionArgsArray.addAll(Arrays.asList(QueryPkg.getSelectionArgs(context)));
+        StringBuffer localSelectionFieldsBuf = new StringBuffer();
+        String localSelectionFields = null;
+        String[] localSelectionArgs = selectionArgsArray.toArray(new String[0]);
+        String orderByFieldName = "";
 
-        StringBuffer localSelectionFields = new StringBuffer(QueryPkg.getSelectionFields(context));
+        if ("queryPackage".equals(queryType)) {
+            String[] selectionArgs = QueryPkg.getSelectionArgs(context);
+            for (String arg: selectionArgs) {
+                Log.v(TAG, "arg [" + arg + "]");
+            }
+            Log.v(TAG, "fields " + QueryPkg.getSelectionFields(context));
+            Log.v(TAG, "---------------------");
+            selectionArgsArray.addAll(Arrays.asList(selectionArgs));
+            localSelectionFieldsBuf = new StringBuffer(QueryPkg.getSelectionFields(context));
 
-        String fullTextSearch = QueryPkg.getFullTextSearch(context);
-        Log.v(TAG, "fullTextSearch [" + fullTextSearch + "]");
-        if (!"".equals(fullTextSearch)) {
-            localSelectionFields.append(" AND (");
-                localSelectionFields.append(StationItem.SEARCH_CONCAT); localSelectionFields.append(" LIKE ?");
-            localSelectionFields.append(")");
-            selectionArgsArray.add("%" + fullTextSearch + "%");
-            QueryPkg.setFullTextSearch("", context);
+            String fullTextSearch = QueryPkg.getFullTextSearch(context);
+            Log.v(TAG, "fullTextSearch [" + fullTextSearch + "]");
+            if (!"".equals(fullTextSearch)) {
+                if (selectionArgs.length == 0) {
+                    localSelectionFieldsBuf.append(" (");
+                } else {
+                    localSelectionFieldsBuf.append(" AND (");
+                }
+                localSelectionFieldsBuf.append(StationItem.SEARCH_CONCAT);
+                localSelectionFieldsBuf.append(" LIKE ?");
+                localSelectionFieldsBuf.append(")");
+                selectionArgsArray.add("%" + fullTextSearch + "%");
+                QueryPkg.setFullTextSearch("", context);
+            }
+
+            if (localSelectionFieldsBuf.length() != 0) localSelectionFields = localSelectionFieldsBuf.toString();
+            localSelectionArgs = selectionArgsArray.toArray(new String[0]);
+            if (localSelectionArgs.length == 0) localSelectionArgs = null;
+
+            orderByFieldName = QueryPkg.getOrderByFieldName(context);
+
+        } else {
+            // select all records
+
+            // order by vote, stars, random
+            orderByFieldName = StationItem.USER_VOTE + " DESC, " + StationItem.USER_STARS + " DESC, " + StationItem.USER_REVIEW + " DESC, " + StationItem.RANDOM_SORT;
+            Log.v(TAG, "Setting order by as vote, stars, random");
         }
 
-        //QueryPkg.selectionArgs = selectionArgsArray.toArray(new String[0]);
-        String[] localSelectionArgs = selectionArgsArray.toArray(new String[0]);
-        Log.v("sengsational", "selectionArgs: " + Arrays.toString(localSelectionArgs));
-        Log.v("sengsational", "selectionFields: " + localSelectionFields);
-        Log.v("sengsational", "pullFields: " + Arrays.toString(QueryPkg.getPullFields(context)));
-        Log.v("sengsational", "orderBy: " + QueryPkg.getOrderBy(context));
+        if (selectionArgsArray.size() == 0) {
+            localSelectionArgs = null;
+        } else {
+            Log.v(TAG, "selectionArgsArray.size() " + selectionArgsArray.size());
+        }
 
-        String orderByDirective = QueryPkg.getOrderBy(context);
-        //Log.v(TAG, "Second order by is not being used.");
-        //orderByDirective += " " + QueryPkg.getSecondOrderBy(context);
 
         if(SQL_CURSOR != null) {
             Log.v(TAG, "The cursor was not null!");
@@ -212,32 +238,16 @@ public class RatstatDatabaseAdapter {
             SQL_DB = RS_DB_ADAPTER.openDb(context);
         }
         if (!SQL_DB.isOpen()) openDatabase(context);
-        boolean pullOk = false;
         try {
-            SQL_CURSOR = SQL_DB.query("RS_ITEMS", QueryPkg.getPullFields(context), localSelectionFields.toString(), localSelectionArgs, null, null, orderByDirective);
-            pullOk = true;
+            Log.v("sengsational", "pullFields: " + Arrays.toString(QueryPkg.getPullFields(context)));
+            Log.v("sengsational", "localSelectionFields: " + localSelectionFields);
+            Log.v("sengsational", "localSelectionArgs: " + Arrays.toString(localSelectionArgs));
+            Log.v("sengsational", "orderBy: " + orderByFieldName);
+
+            SQL_CURSOR = SQL_DB.query("RS_ITEMS", pullFields, localSelectionFields, localSelectionArgs, null, null, orderByFieldName);
+            //SQL_CURSOR = SQL_DB.query("RS_ITEMS", pullFields, null, null, null, null, orderByFieldName);
         } catch (Throwable t) {
            t.printStackTrace();
-        }
-
-        // Not sure why some databases don't contain some fields.
-        String[] pullFields =  QueryPkg.getPullFields(context);  // seems to occasionally have some field not in the table, like GLASS_SIZE.
-        if (!pullOk) {
-            String[] columnNames = SQL_DB.query("RS_ITEMS", null, null, null, null, null, null).getColumnNames();
-            for(String columnName: columnNames) {
-                boolean columnFound = false;
-                for (String field: pullFields ) {
-                    if (field.equals(columnName)) {
-                        columnFound = true;
-                        continue;
-                    }
-                }
-                if (!columnFound) {
-                    Log.v(TAG, "the column " + columnName + "was not found in the table RS_ITEMS.");
-
-                }
-            }
-
         }
 
         boolean hasRecords = SQL_CURSOR.moveToFirst();
@@ -247,7 +257,7 @@ public class RatstatDatabaseAdapter {
         return SQL_CURSOR;
     }
 
-    public int getOffsetForFieldname(String fieldName) {
+    public static int getOffsetForFieldname(String fieldName) {
         for (int i = 0; i < lastPullFields.length; i++) {
             if (lastPullFields[i].equals(fieldName)) return i;
         }
@@ -259,75 +269,60 @@ public class RatstatDatabaseAdapter {
      *
      */
 
-    public static void copyMenuData(Context context) {
-        SQLiteDatabase glassDb = new RatstatDatabaseAdapter().openDb(context);
-        Cursor cursor = glassDb.query("RS_ITEMSLOCAL", null,null, null, null, null, null);
-        boolean hasRecords =cursor.moveToFirst();
-        if (hasRecords) {
-            RatstatDatabaseAdapter repository = new RatstatDatabaseAdapter();
-            SQLiteDatabase db = repository.openDb(context);
-
-            // Loop through all records in RS_ITEMSLOCAL table (gathered from Untappd) and add to main RS_ITEMS table
-            int updated = 0;
-            int updatedCount = 0;
-            for (cursor.moveToFirst(); !cursor.isAfterLast(); cursor.moveToNext()) {
-                // Inputs to find record in the main RS_ITEMS table
-                String storeId = cursor.getString(cursor.getColumnIndexOrThrow("STORE_ID"));
-                String brewId = cursor.getString(cursor.getColumnIndexOrThrow("BREW_ID"));
-
-                // Data to add to the RS_ITEMS table
-                String glassSize = cursor.getString(cursor.getColumnIndexOrThrow("GLASS_SIZE"));
-                String glassPrice = cursor.getString(cursor.getColumnIndexOrThrow("GLASS_PRICE"));
-                String abv = cursor.getString(cursor.getColumnIndexOrThrow("ABV"));
-                String beerNumber = cursor.getString(cursor.getColumnIndexOrThrow("UNTAPPD_BEER"));
-                String breweryNumber = cursor.getString(cursor.getColumnIndexOrThrow("UNTAPPD_BREWERY"));
-
-                ContentValues values = new ContentValues();
-                values.put("GLASS_SIZE", glassSize);
-                values.put("GLASS_PRICE", glassPrice);
-                values.put("UNTAPPD_BEER", beerNumber);
-                values.put("UNTAPPD_BREWERY", breweryNumber);
-                updated = db.update("RS_ITEMS", values, "STORE_ID=? AND BREW_ID=?", new String[]{storeId, brewId});
-                if (updated == 0) {
-                    // This is OK because if the beer is not active, it does not go away...it stays in there 'forever'.  That way, if it comes back, the user will not need to scan it again.
-                } else if(updated !=1) {
-                    Log.e(TAG, "Expected to update 1 record, but updated " + updated + " records. name [" + cursor.getString(cursor.getColumnIndexOrThrow("NAME")) + "]");
-                } else {
-                    updatedCount += updated;
-                }
-
-                /* Check to see if ABV is empty and can be updated DRS 20220726 */
-                String[] pullFields = new String[]{"ABV"}; //was: StationItem.ABV
-                String selectionFields = "STORE_ID=? AND BREW_ID=?";
-                String[] selectionArgs = new String[]{storeId, brewId};
-
-                Cursor mainTableCursor = db.query("RS_ITEMS", pullFields, selectionFields, selectionArgs, null, null, null);
-                lastPullFields = pullFields;
-                if (mainTableCursor != null) {
-                    for (mainTableCursor.moveToFirst(); !mainTableCursor.isAfterLast(); mainTableCursor.moveToNext()) {
-                        String abvFromMain = mainTableCursor.getString(0);
-                        //Log.v(TAG, "abvFromMain was " + abvFromMain + " and abv from Untappd was " + abv + " on " + brewId);
-                        if ("0".equals(abvFromMain) && abv != null && !"".equals(abv)) {
-                            values = new ContentValues();
-                            values.put("ABV", abv);
-                            updated = db.update("RS_ITEMS", values, "STORE_ID=? AND BREW_ID=?", new String[]{storeId, brewId});
-                            if (!(updated == 1)) Log.v(TAG, "Unable to update single brew_id with ABV. " + updated + " records updated.");
-                        }
-                    }
-                }
-            }
-            repository.close();
-            db.close();
-            Log.v(TAG, "There were " + updatedCount + " records updated with glass size, glass price, untapped beer number and brewery number.");
-        } else {
-            Log.v(TAG, "The cursor had no records in copyMenuData() method.");
+    public static String getUserInputJson(Context context) {
+        if(SQL_CURSOR != null) {
+            Log.v(TAG, "The cursor was not null!");
+            try {
+                Log.v(TAG, "closing the database now now.");
+                SQL_CURSOR.close();
+            } catch (Throwable t){}
         }
-        cursor.close();
-        glassDb.close();
+        if (SQL_DB == null) {
+            if (RS_DB_ADAPTER == null) {
+                new RatstatDatabaseAdapter();
+            }
+            SQL_DB = RS_DB_ADAPTER.openDb(context);
+        }
+        if (!SQL_DB.isOpen()) openDatabase(context);
+
+        StringBuffer selectionFieldsBuf = new StringBuffer();
+        ArrayList<String> selectionArgsArrayList = new ArrayList<String>();
+
+        // If the record has a vote
+        selectionFieldsBuf.append(StationItem.USER_VOTE).append(" = ? OR ");
+        selectionArgsArrayList.add("T");
+        // or if the record has stars
+        selectionFieldsBuf.append(StationItem.USER_STARS).append(" != ? OR ");
+        selectionArgsArrayList.add("0.0");
+        // or if the record has a review
+        selectionFieldsBuf.append(StationItem.USER_REVIEW).append(" != ?");
+        selectionArgsArrayList.add("");
+
+        try {
+            SQL_CURSOR = SQL_DB.query("RS_ITEMS", QueryPkg.getPullFields(context), selectionFieldsBuf.toString(), selectionArgsArrayList.toArray(new String[0]), null, null, null);
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+
+        boolean hasRecords = SQL_CURSOR.moveToFirst();
+        SQL_CURSOR.moveToPrevious();
+        Log.v("sengsational", "RatstatDatabaseAdapter.fetch() cursor created. " + SQL_CURSOR + " and " + (hasRecords?"has records":"has NO RECORDS"));
+        if (!hasRecords) return "ERROR: No votes or ratings found.";
+
+        StringBuffer jsonBuf = new StringBuffer("[");
+        while(SQL_CURSOR.moveToNext()) {
+            StationItem item = new StationItem(SQL_CURSOR);
+            jsonBuf.append(item.getUserDataJson(context)).append(",");
+            //Log.v(TAG,"stars:" + item.getUserStars() + " vote: " + item.hasVote() + " review: " + item.getUserReview());
+        }
+        jsonBuf.setLength(jsonBuf.length()-1); // trailing comma
+        jsonBuf.append("]");
+        return jsonBuf.toString();
     }
-    public static int countTapItems(String storeNumber, Context context) {
+
+    public static int countVotedItems(Context context) {
         SQLiteDatabase db = new RatstatDatabaseAdapter().openDb(context);
-        SQLiteStatement countTapItems =  db.compileStatement("SELECT COUNT(*) FROM RS_ITEMS WHERE ACTIVE='T' AND CONTAINER='draught' AND STYLE<>'Mix' AND STYLE<>'Flight' AND STORE_ID='" + storeNumber + "'");
+        SQLiteStatement countTapItems =  db.compileStatement("SELECT COUNT(*) FROM RS_ITEMS WHERE " + StationItem.USER_VOTE + "='T'");
         int count = (int)countTapItems.simpleQueryForLong();
         db.close();
         return count;
@@ -342,7 +337,7 @@ public class RatstatDatabaseAdapter {
     }
 
     public static float fractionTapsWithMenuData(String storeNumber, Context context) {
-        return ((float)countMenuItems(storeNumber, context))/((float)countTapItems(storeNumber, context));
+        return ((float)countMenuItems(storeNumber, context))/((float) countVotedItems(context));
     }
 
     public boolean cursorHasRecords() {
@@ -402,6 +397,8 @@ public class RatstatDatabaseAdapter {
                     db.execSQL("ALTER TABLE RS_ITEMS ADD COLUMN " + StationItem.USER_REVIEW + " TEXT");
                     db.execSQL("ALTER TABLE RS_ITEMS ADD COLUMN " + StationItem.USER_STARS + " TEXT");
                 case 2:
+                    db.execSQL("ALTER TABLE RS_ITEMS ADD COLUMN " + StationItem.USER_VOTE + " TEXT");
+                    db.execSQL("ALTER TABLE RS_ITEMS ADD COLUMN " + StationItem.RANDOM_SORT + " TEXT");
                 case 3:
                 /*
                     db.execSQL("ALTER TABLE RS_ITEMS ADD COLUMN NEW_ARRIVAL TEXT");

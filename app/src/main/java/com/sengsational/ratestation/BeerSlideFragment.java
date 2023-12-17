@@ -92,7 +92,7 @@ public class BeerSlideFragment extends Fragment {
         }
 
         if (mCursorRecyclerViewAdapter == null) {
-            mCursor = RatstatApplication.getCursor(getActivity());
+            mCursor = RatstatApplication.getCursor("queryPackage", getActivity());
             mCursorRecyclerViewAdapter = new MybCursorRecyclerViewAdapter(getActivity(), mCursor, false, false); //Pull cursor from the application class
             mCursorRecyclerViewAdapter.hasStableIds();
         }
@@ -139,7 +139,7 @@ public class BeerSlideFragment extends Fragment {
         mRootView = rootView;
 
         mListPosition = getArguments().getInt(ARG_POSITION);
-        mCursor = RatstatApplication.getCursor(getContext());
+        mCursor = RatstatApplication.getCursor("queryPackage", getContext());
         mCursor.moveToPosition(mListPosition);
         mModelItem = new StationItem(mCursor);
         final StationDbItem modelDbItem = mModelItem.getStationDbItem();
@@ -325,22 +325,25 @@ public class BeerSlideFragment extends Fragment {
             // Construct a model item from accurate cursor
             mModelItem = new StationItem(mCursor);
 
-            // If data found, update model item
-            boolean updateNeeded = false;
-            if (ratingText != null && ratingText.length() >0) {
+            boolean starUpdateNeeded = false;
+            boolean textUpdateNeeded = false;
+            Log.v(TAG, "rating stars from UI " + ratingFloat + " rating stars from cursor " + mModelItem.getUserStarsNumber());
+            Log.v(TAG, "rating text from UI " + ratingText + " rating text from cursor " + mModelItem.getUserReview());
+            if (!(Math.abs(ratingFloat-mModelItem.getUserStarsNumber()) < 0.01f )) starUpdateNeeded = true;
+            if (!mModelItem.getUserReview().equals(ratingText)) textUpdateNeeded = true;
+
+            if (textUpdateNeeded) {
                 mModelItem.setUserReview(ratingText);
-                updateNeeded = true;
             }
-            if (ratingFloat > 0) {
+
+            if (starUpdateNeeded) {
                 mModelItem.setUserStars("" + ratingFloat);
-                updateNeeded = true;
             }
-
+            Log.v(TAG, "rating stars from UI " + ratingFloat + " rating stars from cursor " + mModelItem.getUserStars());
+            Log.v(TAG, "rating text from UI " + ratingText + " rating text from cursor " + mModelItem.getUserReview());
             // Save model item to database
-            if (updateNeeded) {
+            if (starUpdateNeeded || textUpdateNeeded) {
                 RatstatDatabaseAdapter.update(mModelItem, mListPosition, getContext());
-                //RatstatApplication.reQuery(getContext());
-
                 Log.v(TAG, "onPause updated _id " + localDatabaseKeyString);
             } else {
                 //Log.v(TAG, "onPause had no data so did not update _id " + localDatabaseKeyString);
@@ -357,51 +360,5 @@ public class BeerSlideFragment extends Fragment {
         if (mLayoutId > 0) outState.putInt(ARG_LAYOUT_ID, mLayoutId);
         super.onSaveInstanceState(outState);
     }
-
-    public void toggleFavorite(int databaseKey, View rootView, boolean refreshRequired) {
-        REFRESH_REQUIRED = refreshRequired;
-        Cursor cursor = null;
-        SQLiteDatabase db = null;
-        //Create a cursor to read the one record by database _id, passed here by EXTRA_ID
-        try {
-            RatstatDatabaseAdapter ufoDatabaseAdapter = new RatstatDatabaseAdapter() ;
-            db = ufoDatabaseAdapter.openDb(getActivity());                                     //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<OPENING DATABASE
-            // DRS 20160809 - Added another highlight state "X" for 'unavailable'
-            String highlightState = "F";
-            cursor = db.query("UFO", new String[] {"HIGHLIGHTED"}, "_id = ?", new String[] {Integer.toString(databaseKey)}, null, null, null);
-            if (cursor.moveToFirst()) {
-                highlightState = cursor.getString(0);
-            }
-            cursor.close();
-            Log.v("sengsational", "Highlighted state: " + highlightState);
-            ImageView viewToManage = (ImageView)rootView.findViewById(R.id.highlighted);
-            if (viewToManage == null) viewToManage = (ImageView)rootView.findViewById(R.id.highlighted_list_item);
-            updateHighlightState(viewToManage, highlightState, db, databaseKey, this.getContext());
-
-        } catch (SQLiteException e) {
-            Toast toast = Toast.makeText(getContext(), "Database unavailable. "+ e.getMessage(), Toast.LENGTH_LONG)   ;
-        } finally {
-            try {cursor.close();} catch (Throwable t) {}
-            try {db.close();} catch (Throwable t) {}
-            }
-    }
-
-    private static void updateHighlightState(ImageView viewToManage, String highlightState, SQLiteDatabase db, int databaseKey, Context context) {
-        if (highlightState == null) highlightState = "F";
-        switch (highlightState) {
-            case "F":
-                highlightState = "T";
-                break;
-            case "T":
-                highlightState = "X";
-                break;
-            case "X":
-                highlightState = "F";
-            break;
-        }
-        db.execSQL("update UFO set HIGHLIGHTED='" + highlightState + "' where _id = " + databaseKey);
-    }
-
-
 
 }

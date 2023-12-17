@@ -51,17 +51,12 @@ public class MainFragment extends Fragment {
 
                 StringBuilder selectionFieldsBuilder = new StringBuilder();
                 ArrayList<String> selectionArgsArray = new ArrayList<>();
-                // HERE IS WHERE WE COULD SET SELECTION CRITERIA, IF NEEDED
-
-                // Do not show beer number 42 (just to put something in the selection fields).
-                selectionFieldsBuilder.append(StationDbItem.EVENT_BEER_ID + " <> ? ");
-                selectionArgsArray.add("42");
 
                 selectionFields = selectionFieldsBuilder.toString();
                 selectionArgs =  selectionArgsArray.toArray(new String[0]);
 
                 Intent beerList = null;
-                Log.v("sengsational", "TRYING RECYCLER VIEW"); //<<<<<<<<<<<<<<<<<<<<<<<<<<<SWAP-OUT TECHNIQUE
+                Log.v(TAG, "TRYING RECYCLER VIEW"); //<<<<<<<<<<<<<<<<<<<<<<<<<<<SWAP-OUT TECHNIQUE
                 beerList = new Intent(MainFragment.this.getActivity(), RecyclerSqlbListActivity.class);
                 beerList.putExtra("pullFields", pullFields);
                 beerList.putExtra("selectionFields", selectionFields);
@@ -83,15 +78,28 @@ public class MainFragment extends Fragment {
         binding.buttonRatings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Toast.makeText(getContext(), "Not implemented", Toast.LENGTH_SHORT).show();
-            }
-        });
-        binding.buttonVotes.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
+                String[] pullFields = StationItem.FIELDS_ALL;
+                String selectionFields = null;
+                String selectionArgs[] = null;
+                String orderBy = null;
+
+                StringBuilder selectionFieldsBuilder = new StringBuilder();
+                ArrayList<String> selectionArgsArray = new ArrayList<>();
+
+                selectionFields = selectionFieldsBuilder.toString();
+                selectionArgs =  selectionArgsArray.toArray(new String[0]);
+
+                Intent rateList = null;
+                Log.v(TAG, "TRYING RECYCLER VIEW"); //<<<<<<<<<<<<<<<<<<<<<<<<<<<SWAP-OUT TECHNIQUE
+                rateList = new Intent(MainFragment.this.getActivity(), RecyclerSqlcListActivity.class);
+                rateList.putExtra("pullFields", pullFields);
+                rateList.putExtra("selectionFields", selectionFields);
+                rateList.putExtra("selectionArgs", selectionArgs);
                 final Bundle bundle = new Bundle();
                 bundle.putBinder("EVENT_EXTRA", new ObjectWrapper(festivalEvent));
-                startActivity(new Intent(MainFragment.this.getActivity(), VoteActivity.class).putExtras(bundle));
+                rateList.putExtras(bundle);
+                Log.v("sengsational", "going to RecyclerSqlcListActivity");
+                startActivity(rateList);
             }
         });
         binding.buttonDatabase.setOnClickListener(new View.OnClickListener() {

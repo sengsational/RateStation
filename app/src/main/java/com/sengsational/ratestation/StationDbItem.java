@@ -129,6 +129,10 @@ public class StationDbItem {
                     case ID:
                         _id = cursor.getLong(cursor.getColumnIndexOrThrow(ID));
                         break;
+                    case "MODEL_ONLY_EXAMPLE1":
+                    case "MODEL_ONLY_EXAMPLE2":
+                        // Deleted fields might be lingering in the database
+                        break;
                     default:
                         Log.e(TAG, "Not sure what to do about " + columnName);
                 }
@@ -408,6 +412,4 @@ public class StationDbItem {
     public void setVoteGroup(String voteGroup) {
         this.voteGroup = voteGroup;
     }
-
-
 }

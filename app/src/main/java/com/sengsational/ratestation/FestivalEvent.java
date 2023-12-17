@@ -19,7 +19,9 @@ public class FestivalEvent {
     public static final String EVENT_NAME_PREF = "EVENT_NAME_PREF";
     public static final String EVENT_DATE_PREF = "EVENT_DATE_PREF";
     public static final String GEOLOCATION_PREF = "GEOLOCATION_PREF";
+    public static final String EVENT_ADDRESS_PREF = "EVENT_ADDRESS_PREF";
     public static final String EVENT_TEST_FLAG_PREF = "EVENT_TEST_FLAG_PREF";
+    public static final String EVENT_MAX_VOTES_PREF = "EVENT_MAX_VOTES_PREF";
 
 
     //////////////////////////////////////////////
@@ -29,11 +31,12 @@ public class FestivalEvent {
     public static final String EVENT_HASH = "event_hash";
     public static final String EVENT_NAME = "event_name";
     public static final String GEO_LOCATION = "geo_location";
+    public static final String EVENT_ADDRESS = "event_address";
+
 
     //             unused JSON fields
     public static final String ACTIVE = "active";
     public static final String CREATION_DATE = "creationDate";
-    public static final String EVENT_ADDRESS = "event_address";
     public static final String EVENT_DESCRIPTION = "event_description";
     public static final String EVENT_ID = "eventID";
     public static final String LAST_CHANGE_DATE = "lastChangeDate";
@@ -42,6 +45,7 @@ public class FestivalEvent {
 
     // For testing - use to open voting mile radius and event duration
     public static final String TESTING_EVENT_HASH = "Gv7p2eRz"; // TODO: remove when Brad starts sending the eventTestFlag
+    public static final String EVENT_MAX_VOTES = "5"; // TODO: remove when Brad starts sending the max votes count
     private static final float TOLERANCE_DISTANCE_MILES = 1.0f;
 
     //////////////////////////////////////////////
@@ -51,7 +55,9 @@ public class FestivalEvent {
     private String eventName;
     private String eventDate;
     private String geoLocation;
+    private String eventAddress;
     private String eventTestFlag; //TODO: Get Brad to send this. Used to ignore date and geolocation validation
+    private String eventMaxVotes;
 
     //////////////////////////////////////////////
     // DERIVED INSTANCE VARIABLES
@@ -69,7 +75,9 @@ public class FestivalEvent {
         this.eventName = prefs.getString(EVENT_NAME_PREF, "");
         this.eventDate = prefs.getString(EVENT_DATE_PREF, "");
         this.geoLocation = prefs.getString(GEOLOCATION_PREF, "");
+        this.eventAddress = prefs.getString(EVENT_ADDRESS_PREF, "");
         this.eventTestFlag = prefs.getString(EVENT_TEST_FLAG_PREF, "");
+        this.eventMaxVotes = prefs.getString(EVENT_MAX_VOTES_PREF, "5");
 
         // Derived
         this.venueLatitudeString = getDerivedLatitude(this.geoLocation);
@@ -83,7 +91,9 @@ public class FestivalEvent {
         prefsEditor.putString(EVENT_NAME_PREF, getEventName());
         prefsEditor.putString(EVENT_DATE_PREF, getEventDate());
         prefsEditor.putString(GEOLOCATION_PREF, getGeoLocation());
+        prefsEditor.putString(EVENT_ADDRESS_PREF, getEventAddress());
         prefsEditor.putString(EVENT_TEST_FLAG_PREF, getDerivedTestFlag(getEventHash()));
+        prefsEditor.putString(EVENT_MAX_VOTES_PREF, getEventMaxVotes());
         prefsEditor.apply();
     }
 
@@ -129,14 +139,19 @@ public class FestivalEvent {
                 case EVENT_TESTING_FLAG:
                     this.eventTestFlag = content;
                     break;
+                case EVENT_MAX_VOTES:
+                    this.eventMaxVotes = content;
+                    break;
                 case GEO_LOCATION:
                     this.geoLocation = content;
                     this.venueLatitudeString = getDerivedLatitude(content);
                     this.venueLongitudeString = getDerivedLongitude(content);
                     break;
+                case EVENT_ADDRESS:
+                    this.eventAddress = content;
+                    break;
                 case ACTIVE:
                 case CREATION_DATE:
-                case EVENT_ADDRESS:
                 case EVENT_DESCRIPTION:
                 case EVENT_ID:
                 case LAST_CHANGE_DATE:
@@ -189,10 +204,11 @@ public class FestivalEvent {
     public String getEventDate() {
         return eventDate;
     }
-    public String getGeoLocation() {
-        return geoLocation;
-    }
+    public String getGeoLocation() { return geoLocation; }
+    public String getEventAddress() { return eventAddress; }
+    public String getEventMaxVotes() {return eventMaxVotes;}
     public boolean isTestEvent() {
+        //return false;
         return this.eventTestFlag.equalsIgnoreCase("Y");
     }
     public boolean isToday() {
@@ -209,13 +225,26 @@ public class FestivalEvent {
     public boolean isWithinRadius(double latitude, double longitude) {
         double milesFromCenter = getMilesFromCenter(latitude, longitude);
         Log.v(TAG, "Device is " + milesFromCenter + " miles away from the event location.");
-        if (TOLERANCE_DISTANCE_MILES < milesFromCenter) {
+        if (milesFromCenter < TOLERANCE_DISTANCE_MILES) {
             return true;
         } else if (isTestEvent()) {
             Log.v(TAG, "This is a test event, so isWithinRadius() is automatically true.");
             return true;
         }
         else return false;
+    }
+
+    public String getVoteRadiusMessage(double latitude, double longitude) {
+        double milesFromCenter = getMilesFromCenter(latitude, longitude);
+        boolean isTestEvent = isTestEvent();
+        String milesFromCenterFormatted = String.format("%d",(long)milesFromCenter);
+        if (isTestEvent) {
+            return getEventName() + " has been designated for testing, so being " + milesFromCenterFormatted + " miles away from the festival grounds doesn't matter.";
+        } else if (milesFromCenter < TOLERANCE_DISTANCE_MILES) {
+            return "You are at " + getEventName() + " location.  Your votes are being accepted.";
+        } else {
+            return "It looks like you're not located at the " + getEventName() + " event location.  Voting is for people that are attending the event.  Why don't you come to " + getEventAddress() + "?";
+        }
     }
 
     public double getMilesFromCenter(double deviceLatitude, double deviceLongitude) {

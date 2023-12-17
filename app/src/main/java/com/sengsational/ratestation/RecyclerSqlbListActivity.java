@@ -18,7 +18,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
-import android.widget.ResourceCursorAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -39,54 +38,31 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     private static final String TAG = RecyclerSqlbListActivity.class.getSimpleName();
 
     // Callback related
-    private static final int EMAIL_COMPLETE = 1959;
-    private static final int VALIDATE_CARD = 1957;
-
-    private static int listPosition = -1;
-    //private AppCompatDelegate mAppCompatDelegate;
     public static final int DETAIL_REQUEST = 0;
-    private ResourceCursorAdapter mResourceCursorAdapter;
-
-    public MybCursorRecyclerViewAdapter beerRecyclerViewAdapter;
-
-    // new stuff
-    public RatstatDatabaseAdapter repository;
-    public MybCursorRecyclerViewAdapter cursorRecyclerViewAdapter; //<<<<<<<<<<<<<<<<<<
-
-    private RecyclerView recyclerView;
-
-    // DRS20171019 - Added 4
-    private SearchView searchView;
-    private MenuItem searchMenu = null;
+    public MybCursorRecyclerViewAdapter cursorRecyclerViewAdapter;
     private String mQueryTextContent = "";
     private String mQueryButtonText;
-    private static Random mRandom =  new Random();
     private String mLastSortFieldName;
     private String mLastSortAscendingDescending;
     private boolean mSingleItemFired = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        //mAppCompatDelegate = AppCompatDelegate.create(this, this);
-        //mAppCompatDelegate.installViewFactory();
-        //mAppCompatDelegate.onCreate(savedInstanceState);
         super.onCreate(savedInstanceState);
         Log.v(TAG, "RecyclerSqlbListActivity.onCreate() running.");
         setContentView(R.layout.activity_recycler_list);
 
-        recyclerView = (RecyclerView) findViewById(R.id.recyclerView1);
+        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.recyclerView1);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         try {
-            repository = new RatstatDatabaseAdapter();
-            repository.open(this);
+            RatstatDatabaseAdapter.open(this);
 
             Log.v(TAG, "RecyclerSqlbListActivity.onCreate() is pulling records from the database.");
 
             // This intent carries with it the details of how to query
             Intent intent = getIntent();
 
-            // DRS20171019 - Added if/else (else around existing code)
             if (Intent.ACTION_SEARCH.equals(intent.getAction())) {
                 String query = intent.getStringExtra(SearchManager.QUERY);
                 Log.v("sengsational", "THIS NEVER RUNS - onCreate() ACTION_SEARCH!!! " + query);
@@ -108,7 +84,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
                 QueryPkg usedInFetch = new QueryPkg(RatstatDatabaseAdapter.MAIN_TABLE, pullFields, selectionFields, selectionArgs, null, "T", null, false, null, this);
                 if (pullFields != null) {
                     Log.v(TAG, "RecyclerSqlbListActivity.Creating a cursor with 'fetch'");
-                    Cursor aCursor = RatstatDatabaseAdapter.fetch(this);
+                    Cursor aCursor = RatstatDatabaseAdapter.fetch("queryPackage", this);
                     RatstatApplication.setCursor(aCursor); // DRS 20161201 - Added 1 - Cursors only in application class, save query package for reQuery
                     boolean hasRecords = aCursor.moveToFirst();
                     if (aCursor.getCount() != 0) {
@@ -135,22 +111,12 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
         Log.v("sengsational", "RecyclerSqlbListActivity.onActivityResult running with requestCode " + requestCode + ", resultCode " + resultCode);
-        if (requestCode == VALIDATE_CARD) {
-            Log.v(TAG, "Validate Card returned result " + resultCode);
-            if (resultCode == 0) {
-                // Doing this so that fields changed in the database will be updated.
-                finish();
-                startActivity(getIntent());
-            } else {
-                Log.v(TAG, "Unexpected resultCode " + resultCode);
-
-            }
-        } else if (requestCode == RecyclerSqlbListActivity.DETAIL_REQUEST) {
+        if (requestCode == RecyclerSqlbListActivity.DETAIL_REQUEST) {
             Log.v(TAG, "onActivityResult fired <<<<<<<<<< resultCode:" + resultCode + " CLOSING CURSOR WILL PROBABLY BREAK STUFF");
             // CLOSING CURSOR
 
-            RatstatApplication.getCursor(getApplicationContext()).close();
-            cursorRecyclerViewAdapter.changeCursor(RatstatApplication.getCursor(getApplicationContext()));  // DRS 20161201 - Added 1 - Cursors only in application class
+            RatstatApplication.getCursor("queryPackage", getApplicationContext()).close();
+            cursorRecyclerViewAdapter.changeCursor(RatstatApplication.getCursor("queryPackage", getApplicationContext()));  // DRS 20161201 - Added 1 - Cursors only in application class
         } else {
             String intentName = "not available";
             if (intent != null) {
@@ -160,7 +126,6 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         }
     }
 
-    // DRS20171019 - Added method
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -178,29 +143,6 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     public boolean onSearchRequested() {
         Log.v("sengsational", "THIS DOES NOT RUN  - onSearchRequested");
         return super.onSearchRequested();
-    }
-
-
-    private ListView createLongClickListener(ListView listView) {
-        listView.setLongClickable(true);
-        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                Log.v("sengsational", "Long item click.  position:" + position );
-                View databaseKeyView = view.findViewById(R.id.database_key_list_item);
-                if (databaseKeyView != null) {
-                    String keyString = ((TextView)databaseKeyView).getText().toString();
-                    int databaseId = Integer.parseInt(keyString);
-                    //BeerSlideFragment.toggleFavorite(databaseId, view, true);
-                    Log.v("sengsational", "ERROR...REMOVED toggleFavorite!!!  This is old code and wasn't being referenced, but just in case, I put this");
-
-                }  else {
-                    Log.v("sengsational", "dkv was null. View was " + view);
-                }
-                return true;
-            }
-        });
-        return listView;
     }
 
     private void manageToasts() {
@@ -236,17 +178,15 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
             toast.show();
         } finally {
             Log.v("sengsational","Not closing cursor.  Will do in onDestroy().");
-            // try {cursor.close();} catch(Throwable t){}
         }
     }
 
     @Override
     public void onDestroy(){
         super.onDestroy();
-        //mAppCompatDelegate.onDestroy();
         Log.v("sengsational", "Closing cursor in onDestroy().");
         RatstatApplication.closeCursor();
-        repository.close();
+        RatstatDatabaseAdapter.close();
     }
 
     protected void onListItemClick(ListView listView, View view, int position, long id) {
@@ -263,8 +203,8 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Log.v("sengsational", "onResume() running  <<<<<<<<<<<<<<<<<<<<<< LIST DONE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-        // If there is a single item, open it, but only the first time
-        if (this.cursorRecyclerViewAdapter.getCursor().getCount() == 1 && !mSingleItemFired) {
+        // If there is a single item, open it, but only the first time.
+        if (this.cursorRecyclerViewAdapter != null && this.cursorRecyclerViewAdapter.getCursor().getCount() == 1 && !mSingleItemFired) {
             Log.v(TAG, "Automatically 'clicking' the only item in the list.");
             mSingleItemFired = true;
             Intent intent = new Intent(RecyclerSqlbListActivity.this, BeerSlideActivity.class);
@@ -313,7 +253,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
 
         //SearchView searchView = (SearchView) item.getActionView();
         //Log.v("sengsational", "searchView.toString(): " + searchView); // <<<<<<<<<searchView is null
-        searchView = new SearchView(getSupportActionBar().getThemedContext());
+        SearchView searchView = new SearchView(getSupportActionBar().getThemedContext());
 
         searchView.setSearchableInfo(searchManager.getSearchableInfo(getComponentName()));
         searchView.setQueryRefinementEnabled(true);
@@ -340,7 +280,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
                 Log.v(TAG, "onQueryTextChange [" + newText + "]");
                 mQueryTextContent = newText;
                 QueryPkg.setFullTextSearch(newText, lContext);
-                Cursor aCursor = RatstatDatabaseAdapter.fetch(getApplicationContext());
+                Cursor aCursor = RatstatDatabaseAdapter.fetch("queryPackage", getApplicationContext());
                 RatstatApplication.setCursor(aCursor);
                 if (cursorRecyclerViewAdapter != null) {
                     cursorRecyclerViewAdapter.setQueryText(newText);
@@ -351,7 +291,6 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
             }
         });
 
-        searchMenu = item;
         // Assumes current activity is the searchable activity
         //searchView.setSearchableInfo(searchManager.getSearchableInfo(getComponentName()));
         //searchView.setIconifiedByDefault(false); // Do not iconify the widget; expand it by default
@@ -408,7 +347,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         QueryPkg.setOrderBy(sortParameter, this);
 
         if (!"".equals(mQueryTextContent)) QueryPkg.setFullTextSearch(mQueryTextContent, this);
-        Cursor aCursor = RatstatDatabaseAdapter.fetch(this);
+        Cursor aCursor = RatstatDatabaseAdapter.fetch("queryPackage", this);
         RatstatApplication.setCursor(aCursor);
         if (cursorRecyclerViewAdapter != null) cursorRecyclerViewAdapter.changeCursor(aCursor);
 
@@ -418,7 +357,7 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
 
     private String getBrewIdsListFromCursor() {
         StringBuilder builder = new StringBuilder();
-        Cursor cursor = repository.getCursor();
+        Cursor cursor = RatstatDatabaseAdapter.getCursor();
         if (!cursor.moveToFirst()) return ""; // The list was empty
         do {
             int column = cursor.getColumnIndex(StationDbItem.EVENT_BEER_ID);
@@ -433,15 +372,15 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
         builder.append("\"Name\",\"Style\",\"ABV\",\"Tasted\",\"Flagged\"\n");
         String createdString;
         String highlightedString;
-        Cursor cursor = repository.getCursor();
+        Cursor cursor = RatstatDatabaseAdapter.getCursor();
         if (!cursor.moveToFirst()) return "The list was empty.....";
         do {
-            builder.append("\"").append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.BEER_NAME))).append("\",");
-            builder.append("\"").append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.STYLE_CODE))).append("\",");
-            builder.append("\"").append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.ABV))).append("\",");
-            createdString = cursor.getString(repository.getOffsetForFieldname(StationDbItem.ID));
+            builder.append("\"").append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.BEER_NAME))).append("\",");
+            builder.append("\"").append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.STYLE_CODE))).append("\",");
+            builder.append("\"").append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.ABV))).append("\",");
+            createdString = cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.ID));
             builder.append("\"").append((createdString==null)?"":createdString).append("\",");
-            highlightedString = cursor.getString(repository.getOffsetForFieldname(StationDbItem.BEER_CODE));
+            highlightedString = cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.BEER_CODE));
             builder.append("\"").append((highlightedString==null)?"":highlightedString).append("\"\n");
         } while (cursor.moveToNext());
         return builder.toString();
@@ -451,14 +390,14 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     private android.text.Spanned getHtmlFromViewCursor() {
         StringBuilder builder = new StringBuilder();
         builder.append("<span><table><tr><th>Name</th><th><th>Style</th><th><th>ABV</th><th><th>Tasted</th></tr>").append("\n");
-        Cursor cursor = repository.getCursor();
+        Cursor cursor = RatstatDatabaseAdapter.getCursor();
         String createdString;
         if (!cursor.moveToFirst()) return Html.fromHtml("The list was empty.....");
         do {
-            builder.append("<tr><td>").append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.BEER_NAME))).append("</td>");
-            builder.append("<td>").append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.STYLE_CODE))).append("</td>");
-            builder.append("<td>").append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.ABV))).append("</td>");
-            createdString = cursor.getString(repository.getOffsetForFieldname(StationDbItem.ID));
+            builder.append("<tr><td>").append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.BEER_NAME))).append("</td>");
+            builder.append("<td>").append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.STYLE_CODE))).append("</td>");
+            builder.append("<td>").append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.ABV))).append("</td>");
+            createdString = cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.ID));
             builder.append("<td>").append(createdString==null?"":createdString).append("</td></tr>").append("\n");
         } while (cursor.moveToNext());
         builder.append("</table></span>");
@@ -468,16 +407,16 @@ public class RecyclerSqlbListActivity extends AppCompatActivity {
     private android.text.Spanned getTextFromViewCursor() {
         StringBuilder builder = new StringBuilder();
         builder.append("<span>\nName  /  Style  /  ABV  /  Tasted<br>").append("\n");
-        Cursor cursor = repository.getCursor();
+        Cursor cursor = RatstatDatabaseAdapter.getCursor();
         String createdString;
         String abvString;
         if (!cursor.moveToFirst()) return Html.fromHtml("The list was empty.....");
         do {
-            builder.append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.BEER_NAME))).append("  /  ");
-            builder.append(cursor.getString(repository.getOffsetForFieldname(StationDbItem.STYLE_CODE))).append("  /  ");
-            abvString = cursor.getString(repository.getOffsetForFieldname(StationDbItem.ABV));
+            builder.append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.BEER_NAME))).append("  /  ");
+            builder.append(cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.STYLE_CODE))).append("  /  ");
+            abvString = cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.ABV));
             builder.append("0".equals(abvString)?"":abvString).append("  /  ");
-            createdString = cursor.getString(repository.getOffsetForFieldname(StationDbItem.ID));
+            createdString = cursor.getString(RatstatDatabaseAdapter.getOffsetForFieldname(StationDbItem.ID));
             builder.append(createdString==null?"":createdString).append("<br>").append("\n");
         } while (cursor.moveToNext());
         builder.append("</span>");

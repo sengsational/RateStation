@@ -1,13 +1,14 @@
 package com.sengsational.ratestation;
 
 import android.content.ContentValues;
+import android.content.Context;
 import android.database.Cursor;
 import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.Set;
+import java.util.Random;
 import java.util.stream.Stream;
 
 /**
@@ -22,13 +23,15 @@ public class StationItem {
     //////////////////////////////////////////////
     // MODEL ONLY FIELD NAMES
     //////////////////////////////////////////////
-    public static final String MODEL_ONLY_EXAMPLE1 = "MODEL_ONLY_EXAMPLE1";
-    public static final String MODEL_ONLY_EXAMPLE2 = "MODEL_ONLY_EXAMPLE2";
+    public static final String USER_VOTE = "USER_VOTE";
+    public static final String RANDOM_SORT = "RANDOM_SORT";
     public static final String SEARCH_CONCAT = "SEARCH_CONCAT";
     public static final String USER_REVIEW = "USER_REVIEW";
     public static final String USER_STARS = "USER_STARS";
-    public static final String[] FIELDS = {MODEL_ONLY_EXAMPLE1, MODEL_ONLY_EXAMPLE2, SEARCH_CONCAT, USER_REVIEW, USER_STARS};
+    public static final String[] FIELDS = {USER_VOTE, RANDOM_SORT, SEARCH_CONCAT, USER_REVIEW, USER_STARS};
     public static final String[] FIELDS_ALL = Stream.concat(Arrays.stream(StationDbItem.FIELDS), Arrays.stream(StationItem.FIELDS)).toArray(String[]::new);
+
+    public static final Random RANDOM_SOURCE = new Random();
 
 
     //////////////////////////////////////////////
@@ -46,8 +49,8 @@ public class StationItem {
     // INSTANCE VARIABLES
     //////////////////////////////////////////////
     StationDbItem stationDbItem; //fields owned by the external database
-    String modelOnlyExample1; // field not in the external database
-    String modelOnlyExample2; // field not in the external database
+    String userVote; // field not in the external database
+    String randomSort; // field not in the external database
     String searchConcat;
     String userReview;
     String userStars;
@@ -110,27 +113,33 @@ public class StationItem {
         buf.append(stationDbItem.getVendorName()).append(" ");
         this.searchConcat = buf.toString();
 
-        // put blank in for everything else
-        this.modelOnlyExample1 = "";
-        this.modelOnlyExample2 = "";
+        // put blank in for things the user will be adding
+        this.userVote = "F";
         this.userReview = "";
-        this.userStars = "";
+        this.userStars = "0.0";
+
+        // initialize with a random number for random sorting
+        this.randomSort = RANDOM_SOURCE.nextLong() + "";
     }
 
     // Normally the only thing that changes (changed by the user) is the highlighted, but we put everything back except null items
     public static ContentValues fillModelValues(StationItem model){
         ContentValues values = new ContentValues();
         values = StationDbItem.fillModelValues(model.stationDbItem, values);
-        values.put(MODEL_ONLY_EXAMPLE1, model.modelOnlyExample1);
-        values.put(MODEL_ONLY_EXAMPLE2, model.modelOnlyExample2);
+        values.put(USER_VOTE, model.userVote);
+        values.put(RANDOM_SORT, model.randomSort);
         values.put(SEARCH_CONCAT, model.searchConcat);
         values.put(USER_REVIEW, model.userReview);
         values.put(USER_STARS, model.userStars);
+        Log.v(TAG, "StationItem.fillModelValues stars was [" + model.userStars + "]");
         Iterator<String> iterator = values.keySet().iterator();
         ArrayList<String> removeList = new ArrayList<>();
         while (iterator.hasNext()) {
             String key = iterator.next();
-            if (null == values.get(key)) removeList.add(key);
+            if (null == values.get(key)) {
+                Log.v(TAG, "for key " + key + " values get key was  null");
+                removeList.add(key);
+            }
         }
         for (String removeItem: removeList) {
             values.remove(removeItem);
@@ -141,8 +150,8 @@ public class StationItem {
     public ContentValues getContentValues() {
         ContentValues values = new ContentValues();
         values = stationDbItem.getContentValues(values);
-        if (this.modelOnlyExample1 != null) values.put(MODEL_ONLY_EXAMPLE1, modelOnlyExample1);
-        if (this.modelOnlyExample2 != null) values.put(MODEL_ONLY_EXAMPLE2, modelOnlyExample2);
+        if (this.userVote != null) values.put(USER_VOTE, userVote);
+        if (this.randomSort != null) values.put(RANDOM_SORT, randomSort);
         if (this.searchConcat != null) values.put(SEARCH_CONCAT, searchConcat);
         if (this.userReview != null) values.put(USER_REVIEW, userReview);
         if (this.userStars != null) values.put(USER_STARS, userStars);
@@ -158,8 +167,8 @@ public class StationItem {
     public StationItem populate(Cursor cursor) {
         try {
             // Clear all values before populating from cursor
-            modelOnlyExample1 = null;
-            modelOnlyExample2 = null;
+            userVote = null;
+            randomSort = null;
             searchConcat = null;
             userReview = null;
             userStars = null;
@@ -171,11 +180,11 @@ public class StationItem {
             for (String columnName: columnNames) {
                 //columnNamesStringBuff.append(columnName).append(",");
                 switch  (columnName) {
-                    case MODEL_ONLY_EXAMPLE1:
-                        modelOnlyExample1 = cursor.getString(cursor.getColumnIndexOrThrow(MODEL_ONLY_EXAMPLE1));
+                    case USER_VOTE:
+                        userVote = cursor.getString(cursor.getColumnIndexOrThrow(USER_VOTE));
                         break;
-                    case MODEL_ONLY_EXAMPLE2:
-                        modelOnlyExample2 = cursor.getString(cursor.getColumnIndexOrThrow(MODEL_ONLY_EXAMPLE2));
+                    case RANDOM_SORT:
+                        randomSort = cursor.getString(cursor.getColumnIndexOrThrow(RANDOM_SORT));
                         break;
                     case SEARCH_CONCAT:
                         searchConcat = cursor.getString(cursor.getColumnIndexOrThrow(SEARCH_CONCAT));
@@ -185,6 +194,10 @@ public class StationItem {
                         break;
                     case USER_STARS:
                         userStars = cursor.getString(cursor.getColumnIndexOrThrow(USER_STARS));
+                        break;
+                    case "MODEL_ONLY_EXAMPLE1":
+                    case "MODEL_ONLY_EXAMPLE2":
+                        // Deleted fields might be lingering in the database
                         break;
                     default:
                         if (!StationDbItem.hasField(columnName)) Log.v(TAG, "Not sure what to do about " + columnName);
@@ -237,8 +250,8 @@ public class StationItem {
 
     public String toString() {
         return stationDbItem.toString()
-                + modelOnlyExample1 + ", "
-                + modelOnlyExample2 + ", "
+                + userVote + ", "
+                + randomSort + ", "
                 + searchConcat + ", "
                 + userReview + ", "
                 + userStars;
@@ -252,12 +265,60 @@ public class StationItem {
         return userStars;
     }
 
+    public float getUserStarsNumber() {
+        //Log.v(TAG, "userStars [" + getUserStars() + "]");
+        float starsNumber = 0f;
+        if (userStars == null || userStars.length() == 0 ) return starsNumber;
+        try {
+            starsNumber = Float.parseFloat(userStars);
+        } catch (Throwable t) {}
+        return starsNumber;
+    }
+
     public void setUserReview(String ratingText) {
         this.userReview = ratingText;
     }
 
     public void setUserStars(String s) {
+        Log.v(TAG, "setting stars [" + s + "] " + getStationDbItem().getBeerName());
         this.userStars = s;
     }
 
+    public boolean hasVote() {
+        return "T".equals(this.userVote);
+    }
+    public void setVote(boolean isVote) {
+        if (isVote) userVote = "T";
+        else userVote = "F";
+    }
+
+    public String getUserDataJson(Context context) {
+        String deviceId =  android.provider.Settings.Secure.getString(context.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+
+        StringBuffer jsonBuf = new StringBuffer("{");
+        jsonBuf.append("\"").append(StationDbItem.EVENT_BEER_ID).append("\":\"").append(this.stationDbItem.getEventBeerId()).append("\",");
+        jsonBuf.append("\"").append(StationDbItem.EVENT_HASH).append("\":\"").append(this.stationDbItem.getEventHash()).append("\",");
+        jsonBuf.append("\"").append("DEVICE_ID").append("\":\"").append(deviceId).append("\",");
+        jsonBuf.append("\"").append(StationItem.USER_VOTE).append("\":\"").append(this.userVote).append("\",");
+        jsonBuf.append("\"").append(StationItem.USER_STARS).append("\":\"").append(this.userStars).append("\",");
+        jsonBuf.append("\"").append(StationItem.USER_REVIEW).append("\":\"").append(escapeDoubleQuotes(this.userReview)).append("\"");
+        jsonBuf.append("}");
+        return jsonBuf.toString();
+    }
+
+    private String escapeDoubleQuotes(String input) {
+        if (!input.contains("\"")) return input;
+        //https://stackoverflow.com/a/26506625 (Didn't test much)
+        String progress = "";
+        for(int c = 0; c < input.length(); c++){
+            char ch = input.charAt(c);
+            if(ch == '\\'){    // Skip if the next character is already escaped
+                c++;
+                continue;
+            }
+            if(ch == '\"') progress += "\\\""; // Results in \"
+            else progress += ch;    // Add the character to progress
+        }
+        return progress;
+    }
 }
